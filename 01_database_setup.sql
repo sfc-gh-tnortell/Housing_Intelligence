@@ -1,0 +1,272 @@
+-- ================================================================
+-- HOUSING INTELLIGENCE DATABASE SETUP WITH CORTEX INTEGRATION
+-- ================================================================
+-- This script creates the complete database structure for housing sales analysis
+-- with both Cortex Analyst (structured data) and Cortex Search (document search) capabilities
+
+-- Create database and schema
+CREATE OR REPLACE DATABASE HOUSING_INTELLIGENCE;
+CREATE OR REPLACE SCHEMA HOUSING_INTELLIGENCE.CORE;
+
+USE DATABASE HOUSING_INTELLIGENCE;
+USE SCHEMA CORE;
+
+-- ================================================================
+-- CUSTOMERS TABLE
+-- ================================================================
+CREATE OR REPLACE TABLE CUSTOMERS (
+    CUSTOMER_ID NUMBER(10,0) NOT NULL,
+    FIRST_NAME VARCHAR(50) NOT NULL,
+    LAST_NAME VARCHAR(50) NOT NULL,
+    EMAIL VARCHAR(100),
+    PHONE VARCHAR(20),
+    DATE_OF_BIRTH DATE,
+    ANNUAL_INCOME NUMBER(12,2),
+    CREDIT_SCORE NUMBER(3,0),
+    EMPLOYMENT_STATUS VARCHAR(50),
+    MARITAL_STATUS VARCHAR(20),
+    FAMILY_SIZE NUMBER(2,0),
+    PREFERRED_LOCATION VARCHAR(100),
+    BUDGET_MIN NUMBER(12,2),
+    BUDGET_MAX NUMBER(12,2),
+    CUSTOMER_SINCE DATE,
+    CONSTRAINT PK_CUSTOMERS PRIMARY KEY (CUSTOMER_ID)
+);
+
+-- ================================================================
+-- HOUSE_CHARACTERISTICS TABLE
+-- ================================================================
+CREATE OR REPLACE TABLE HOUSE_CHARACTERISTICS (
+    HOUSE_ID NUMBER(10,0) NOT NULL,
+    ADDRESS VARCHAR(200) NOT NULL,
+    CITY VARCHAR(50) NOT NULL,
+    STATE VARCHAR(2) NOT NULL,
+    ZIP_CODE VARCHAR(10) NOT NULL,
+    BEDROOMS NUMBER(2,0),
+    BATHROOMS NUMBER(3,1),
+    SQUARE_FOOTAGE NUMBER(6,0),
+    LOT_SIZE_SQFT NUMBER(8,0),
+    YEAR_BUILT NUMBER(4,0),
+    PROPERTY_TYPE VARCHAR(50),
+    GARAGE_SPACES NUMBER(1,0),
+    HAS_POOL BOOLEAN,
+    HAS_FIREPLACE BOOLEAN,
+    HAS_BASEMENT BOOLEAN,
+    FLOORING_TYPE VARCHAR(50),
+    HEATING_TYPE VARCHAR(50),
+    COOLING_TYPE VARCHAR(50),
+    NEIGHBORHOOD VARCHAR(100),
+    SCHOOL_DISTRICT VARCHAR(100),
+    WALK_SCORE NUMBER(3,0),
+    CRIME_RATE VARCHAR(20),
+    LISTING_DATE DATE,
+    LISTING_PRICE NUMBER(12,2),
+    PROPERTY_TAX_ANNUAL NUMBER(8,2),
+    HOA_FEE_MONTHLY NUMBER(6,2),
+    CONSTRAINT PK_HOUSE_CHARACTERISTICS PRIMARY KEY (HOUSE_ID)
+);
+
+-- ================================================================
+-- HOUSE_SALES TABLE
+-- ================================================================
+CREATE OR REPLACE TABLE HOUSE_SALES (
+    SALE_ID NUMBER(10,0) NOT NULL,
+    HOUSE_ID NUMBER(10,0) NOT NULL,
+    CUSTOMER_ID NUMBER(10,0) NOT NULL,
+    SALE_DATE DATE NOT NULL,
+    SALE_PRICE NUMBER(12,2) NOT NULL,
+    LISTING_PRICE NUMBER(12,2),
+    DAYS_ON_MARKET NUMBER(4,0),
+    SALE_TYPE VARCHAR(50), -- 'Cash', 'Financed', 'FHA', 'VA', etc.
+    AGENT_ID NUMBER(8,0),
+    AGENT_NAME VARCHAR(100),
+    COMMISSION_RATE NUMBER(4,3),
+    COMMISSION_AMOUNT NUMBER(10,2),
+    FINANCING_TYPE VARCHAR(50),
+    DOWN_PAYMENT_AMOUNT NUMBER(12,2),
+    LOAN_AMOUNT NUMBER(12,2),
+    INTEREST_RATE NUMBER(5,3),
+    CLOSING_COSTS NUMBER(8,2),
+    INSPECTION_PASSED BOOLEAN,
+    APPRAISAL_VALUE NUMBER(12,2),
+    CONTINGENCIES VARCHAR(500),
+    SALE_STATUS VARCHAR(20) DEFAULT 'COMPLETED',
+    PURCHASE_AGREEMENT_PATH VARCHAR(500), -- Path to PDF in stage
+    CONSTRAINT PK_HOUSE_SALES PRIMARY KEY (SALE_ID),
+    CONSTRAINT FK_SALES_HOUSE FOREIGN KEY (HOUSE_ID) REFERENCES HOUSE_CHARACTERISTICS(HOUSE_ID),
+    CONSTRAINT FK_SALES_CUSTOMER FOREIGN KEY (CUSTOMER_ID) REFERENCES CUSTOMERS(CUSTOMER_ID)
+);
+
+-- ================================================================
+-- PURCHASE_AGREEMENTS TABLE (Metadata for PDF documents)
+-- ================================================================
+CREATE OR REPLACE TABLE PURCHASE_AGREEMENTS (
+    AGREEMENT_ID NUMBER(10,0) NOT NULL,
+    SALE_ID NUMBER(10,0) NOT NULL,
+    DOCUMENT_NAME VARCHAR(200) NOT NULL,
+    DOCUMENT_PATH VARCHAR(500) NOT NULL,
+    FILE_SIZE_BYTES NUMBER(12,0),
+    UPLOAD_DATE TIMESTAMP DEFAULT CURRENT_TIMESTAMP(),
+    DOCUMENT_TYPE VARCHAR(50) DEFAULT 'PURCHASE_AGREEMENT',
+    CONTRACT_DATE DATE,
+    CLOSING_DATE DATE,
+    SPECIAL_TERMS TEXT,
+    CONTINGENCY_DETAILS TEXT,
+    FINANCING_DETAILS TEXT,
+    CONSTRAINT PK_PURCHASE_AGREEMENTS PRIMARY KEY (AGREEMENT_ID),
+    CONSTRAINT FK_AGREEMENTS_SALE FOREIGN KEY (SALE_ID) REFERENCES HOUSE_SALES(SALE_ID)
+);
+
+-- ================================================================
+-- CREATE STAGES FOR DOCUMENT STORAGE
+-- ================================================================
+
+-- Stage for storing purchase agreement PDFs
+CREATE OR REPLACE STAGE PURCHASE_AGREEMENTS_STAGE
+    DIRECTORY = (ENABLE = TRUE)
+    COMMENT = 'Stage for storing PDF purchase agreements and related documents';
+
+-- Stage for semantic model files
+CREATE OR REPLACE STAGE SEMANTIC_MODELS_STAGE
+    DIRECTORY = (ENABLE = TRUE)
+    COMMENT = 'Stage for storing semantic model YAML files for Cortex Analyst';
+
+-- ================================================================
+-- CREATE FILE FORMATS
+-- ================================================================
+
+-- File format for PDF documents
+CREATE OR REPLACE FILE FORMAT PDF_FORMAT
+    TYPE = 'CSV'
+    FIELD_DELIMITER = 'NONE'
+    RECORD_DELIMITER = 'NONE'
+    SKIP_HEADER = 0
+    FIELD_OPTIONALLY_ENCLOSED_BY = 'NONE'
+    COMMENT = 'File format for handling PDF binary files';
+
+-- ================================================================
+-- CREATE INDEXES FOR PERFORMANCE
+-- ================================================================
+CREATE INDEX IDX_CUSTOMERS_INCOME ON CUSTOMERS(ANNUAL_INCOME);
+CREATE INDEX IDX_CUSTOMERS_CREDIT ON CUSTOMERS(CREDIT_SCORE);
+CREATE INDEX IDX_CUSTOMERS_STATE ON CUSTOMERS(PREFERRED_LOCATION);
+
+CREATE INDEX IDX_HOUSE_LOCATION ON HOUSE_CHARACTERISTICS(STATE, CITY);
+CREATE INDEX IDX_HOUSE_PRICE ON HOUSE_CHARACTERISTICS(LISTING_PRICE);
+CREATE INDEX IDX_HOUSE_SIZE ON HOUSE_CHARACTERISTICS(SQUARE_FOOTAGE);
+CREATE INDEX IDX_HOUSE_TYPE ON HOUSE_CHARACTERISTICS(PROPERTY_TYPE);
+
+CREATE INDEX IDX_SALES_DATE ON HOUSE_SALES(SALE_DATE);
+CREATE INDEX IDX_SALES_PRICE ON HOUSE_SALES(SALE_PRICE);
+CREATE INDEX IDX_SALES_AGENT ON HOUSE_SALES(AGENT_NAME);
+CREATE INDEX IDX_SALES_FINANCING ON HOUSE_SALES(FINANCING_TYPE);
+
+CREATE INDEX IDX_AGREEMENTS_SALE ON PURCHASE_AGREEMENTS(SALE_ID);
+CREATE INDEX IDX_AGREEMENTS_DATE ON PURCHASE_AGREEMENTS(CONTRACT_DATE);
+
+-- ================================================================
+-- CREATE VIEWS FOR CORTEX SEARCH METADATA
+-- ================================================================
+
+-- View to provide document metadata for Cortex Search
+CREATE OR REPLACE VIEW DOCUMENT_SEARCH_METADATA AS
+SELECT 
+    pa.AGREEMENT_ID,
+    pa.SALE_ID,
+    pa.DOCUMENT_NAME,
+    pa.DOCUMENT_PATH,
+    pa.CONTRACT_DATE,
+    pa.CLOSING_DATE,
+    hs.SALE_PRICE,
+    hs.SALE_DATE,
+    hs.AGENT_NAME,
+    hs.FINANCING_TYPE,
+    hc.ADDRESS,
+    hc.CITY,
+    hc.STATE,
+    hc.PROPERTY_TYPE,
+    c.FIRST_NAME || ' ' || c.LAST_NAME AS BUYER_NAME,
+    c.ANNUAL_INCOME AS BUYER_INCOME,
+    pa.SPECIAL_TERMS,
+    pa.CONTINGENCY_DETAILS,
+    pa.FINANCING_DETAILS
+FROM PURCHASE_AGREEMENTS pa
+JOIN HOUSE_SALES hs ON pa.SALE_ID = hs.SALE_ID
+JOIN HOUSE_CHARACTERISTICS hc ON hs.HOUSE_ID = hc.HOUSE_ID
+JOIN CUSTOMERS c ON hs.CUSTOMER_ID = c.CUSTOMER_ID;
+
+-- ================================================================
+-- GRANT PERMISSIONS
+-- ================================================================
+GRANT ALL ON DATABASE HOUSING_INTELLIGENCE TO ROLE SYSADMIN;
+GRANT ALL ON SCHEMA HOUSING_INTELLIGENCE.CORE TO ROLE SYSADMIN;
+GRANT ALL ON ALL TABLES IN SCHEMA HOUSING_INTELLIGENCE.CORE TO ROLE SYSADMIN;
+GRANT ALL ON ALL VIEWS IN SCHEMA HOUSING_INTELLIGENCE.CORE TO ROLE SYSADMIN;
+GRANT ALL ON STAGE PURCHASE_AGREEMENTS_STAGE TO ROLE SYSADMIN;
+GRANT ALL ON STAGE SEMANTIC_MODELS_STAGE TO ROLE SYSADMIN;
+GRANT ALL ON FILE FORMAT PDF_FORMAT TO ROLE SYSADMIN;
+
+-- ================================================================
+-- STORED PROCEDURES FOR DOCUMENT MANAGEMENT
+-- ================================================================
+
+-- Procedure to register a new purchase agreement
+CREATE OR REPLACE PROCEDURE REGISTER_PURCHASE_AGREEMENT(
+    SALE_ID_PARAM NUMBER,
+    DOCUMENT_NAME_PARAM VARCHAR,
+    DOCUMENT_PATH_PARAM VARCHAR,
+    CONTRACT_DATE_PARAM DATE,
+    CLOSING_DATE_PARAM DATE,
+    SPECIAL_TERMS_PARAM TEXT
+)
+RETURNS STRING
+LANGUAGE SQL
+EXECUTE AS CALLER
+AS
+$$
+DECLARE
+    AGREEMENT_ID_VAR NUMBER;
+BEGIN
+    SELECT COALESCE(MAX(AGREEMENT_ID), 0) + 1 INTO AGREEMENT_ID_VAR FROM PURCHASE_AGREEMENTS;
+    
+    INSERT INTO PURCHASE_AGREEMENTS (
+        AGREEMENT_ID, SALE_ID, DOCUMENT_NAME, DOCUMENT_PATH, 
+        CONTRACT_DATE, CLOSING_DATE, SPECIAL_TERMS
+    ) VALUES (
+        AGREEMENT_ID_VAR, SALE_ID_PARAM, DOCUMENT_NAME_PARAM, DOCUMENT_PATH_PARAM,
+        CONTRACT_DATE_PARAM, CLOSING_DATE_PARAM, SPECIAL_TERMS_PARAM
+    );
+    
+    UPDATE HOUSE_SALES 
+    SET PURCHASE_AGREEMENT_PATH = DOCUMENT_PATH_PARAM 
+    WHERE SALE_ID = SALE_ID_PARAM;
+    
+    RETURN 'Purchase agreement registered with ID: ' || AGREEMENT_ID_VAR;
+END;
+$$;
+
+-- ================================================================
+-- COMMENTS FOR DOCUMENTATION
+-- ================================================================
+COMMENT ON DATABASE HOUSING_INTELLIGENCE IS 'Database for housing sales analysis with Cortex Analyst and Cortex Search capabilities';
+COMMENT ON SCHEMA HOUSING_INTELLIGENCE.CORE IS 'Core schema containing structured data tables and document metadata';
+
+COMMENT ON TABLE CUSTOMERS IS 'Customer demographics, financial information, and preferences';
+COMMENT ON TABLE HOUSE_CHARACTERISTICS IS 'Detailed property information including location, features, and amenities';
+COMMENT ON TABLE HOUSE_SALES IS 'Transaction records linking customers to properties with complete sale details';
+COMMENT ON TABLE PURCHASE_AGREEMENTS IS 'Metadata for PDF purchase agreement documents stored in stages';
+
+COMMENT ON STAGE PURCHASE_AGREEMENTS_STAGE IS 'Storage for PDF purchase agreements and legal documents';
+COMMENT ON STAGE SEMANTIC_MODELS_STAGE IS 'Storage for YAML semantic models used by Cortex Analyst';
+
+COMMENT ON VIEW DOCUMENT_SEARCH_METADATA IS 'Enriched metadata view for Cortex Search integration';
+
+-- ================================================================
+-- SYSTEM VERIFICATION
+-- ================================================================
+SELECT 
+    'HOUSING_INTELLIGENCE Database Setup Complete' AS STATUS,
+    'Tables: 4 core tables + 1 metadata table' AS TABLES_INFO,
+    'Stages: 2 stages for documents and models' AS STAGES_INFO,
+    'Indexes: Performance optimized for queries' AS INDEXES_INFO,
+    'Ready for: Cortex Analyst + Cortex Search' AS CAPABILITIES;
