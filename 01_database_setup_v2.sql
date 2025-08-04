@@ -1,0 +1,411 @@
+-- ================================================================
+-- HOUSING INTELLIGENCE DATABASE SETUP V2 - REBUILT FROM SCRATCH
+-- ================================================================
+-- Complete Snowflake Cortex system with 1:1 customer-house relationship
+-- Supporting Cortex Analyst (structured data) and Cortex Search (documents)
+
+-- Create database and schema
+CREATE OR REPLACE DATABASE HOUSING_INTELLIGENCE;
+CREATE OR REPLACE SCHEMA HOUSING_INTELLIGENCE.CORE;
+
+USE DATABASE HOUSING_INTELLIGENCE;
+USE SCHEMA CORE;
+
+-- ================================================================
+-- CUSTOMERS TABLE - 60 customers across 5 states
+-- ================================================================
+CREATE OR REPLACE TABLE CUSTOMERS (
+    CUSTOMER_ID NUMBER(10,0) NOT NULL,
+    FIRST_NAME VARCHAR(50) NOT NULL,
+    LAST_NAME VARCHAR(50) NOT NULL,
+    EMAIL VARCHAR(100),
+    PHONE VARCHAR(20),
+    DATE_OF_BIRTH DATE,
+    ANNUAL_INCOME NUMBER(12,2),
+    CREDIT_SCORE NUMBER(3,0),
+    EMPLOYMENT_STATUS VARCHAR(50),
+    MARITAL_STATUS VARCHAR(20),
+    FAMILY_SIZE NUMBER(2,0),
+    PREFERRED_LOCATION VARCHAR(100),
+    BUDGET_MIN NUMBER(12,2),
+    BUDGET_MAX NUMBER(12,2),
+    CUSTOMER_SINCE DATE,
+    -- Contact and location preferences
+    HOME_STATE VARCHAR(2),
+    OCCUPATION VARCHAR(100),
+    EMPLOYER VARCHAR(200),
+    YEARS_EMPLOYED NUMBER(3,0),
+    -- Financial details
+    MONTHLY_INCOME NUMBER(10,2),
+    DEBT_TO_INCOME_RATIO NUMBER(5,3),
+    SAVINGS_AMOUNT NUMBER(12,2),
+    FIRST_TIME_BUYER BOOLEAN DEFAULT FALSE,
+    PRE_APPROVED_AMOUNT NUMBER(12,2),
+    
+    CONSTRAINT PK_CUSTOMERS PRIMARY KEY (CUSTOMER_ID)
+);
+
+-- ================================================================
+-- HOUSE_CHARACTERISTICS TABLE - 60 properties across 5 states
+-- ================================================================
+CREATE OR REPLACE TABLE HOUSE_CHARACTERISTICS (
+    HOUSE_ID NUMBER(10,0) NOT NULL,
+    ADDRESS VARCHAR(200) NOT NULL,
+    CITY VARCHAR(50) NOT NULL,
+    STATE VARCHAR(2) NOT NULL,
+    ZIP_CODE VARCHAR(10) NOT NULL,
+    COUNTY VARCHAR(50),
+    
+    -- Property basics
+    BEDROOMS NUMBER(2,0),
+    BATHROOMS NUMBER(3,1),
+    SQUARE_FOOTAGE NUMBER(6,0),
+    LOT_SIZE_SQFT NUMBER(8,0),
+    YEAR_BUILT NUMBER(4,0),
+    PROPERTY_TYPE VARCHAR(50), -- Single Family, Condo, Townhouse, etc.
+    
+    -- Features and amenities
+    GARAGE_SPACES NUMBER(1,0),
+    HAS_POOL BOOLEAN,
+    HAS_FIREPLACE BOOLEAN,
+    HAS_BASEMENT BOOLEAN,
+    HAS_DECK_PATIO BOOLEAN,
+    HAS_GARDEN BOOLEAN,
+    FLOORING_TYPE VARCHAR(50),
+    HEATING_TYPE VARCHAR(50),
+    COOLING_TYPE VARCHAR(50),
+    
+    -- Location and quality
+    NEIGHBORHOOD VARCHAR(100),
+    SCHOOL_DISTRICT VARCHAR(100),
+    WALK_SCORE NUMBER(3,0),
+    CRIME_RATE VARCHAR(20),
+    PROXIMITY_TO_TRANSIT VARCHAR(100),
+    
+    -- Market information
+    LISTING_DATE DATE,
+    LISTING_PRICE NUMBER(12,2),
+    PROPERTY_TAX_ANNUAL NUMBER(8,2),
+    HOA_FEE_MONTHLY NUMBER(6,2),
+    LAST_SOLD_DATE DATE,
+    LAST_SOLD_PRICE NUMBER(12,2),
+    
+    -- Property condition
+    CONDITION_RATING VARCHAR(20), -- Excellent, Good, Fair, Needs Work
+    RECENT_UPDATES TEXT,
+    ENERGY_EFFICIENCY_RATING VARCHAR(5),
+    
+    CONSTRAINT PK_HOUSE_CHARACTERISTICS PRIMARY KEY (HOUSE_ID)
+);
+
+-- ================================================================
+-- HOUSE_SALES TABLE - 60 transactions (1:1 customer-house mapping)
+-- ================================================================
+CREATE OR REPLACE TABLE HOUSE_SALES (
+    SALE_ID NUMBER(10,0) NOT NULL,
+    HOUSE_ID NUMBER(10,0) NOT NULL UNIQUE, -- UNIQUE ensures 1:1 house mapping
+    CUSTOMER_ID NUMBER(10,0) NOT NULL UNIQUE, -- UNIQUE ensures 1:1 customer mapping
+    SALE_DATE DATE NOT NULL,
+    SALE_PRICE NUMBER(12,2) NOT NULL,
+    LISTING_PRICE NUMBER(12,2),
+    DAYS_ON_MARKET NUMBER(4,0),
+    
+    -- Transaction details
+    SALE_TYPE VARCHAR(50), -- Cash, Financed, etc.
+    FINANCING_TYPE VARCHAR(50), -- Conventional, FHA, VA, Jumbo, Cash
+    DOWN_PAYMENT_AMOUNT NUMBER(12,2),
+    LOAN_AMOUNT NUMBER(12,2),
+    INTEREST_RATE NUMBER(5,3),
+    LOAN_TERM_YEARS NUMBER(2,0),
+    MONTHLY_PAYMENT NUMBER(8,2),
+    
+    -- Professional services
+    AGENT_ID NUMBER(8,0),
+    AGENT_NAME VARCHAR(100),
+    AGENT_COMPANY VARCHAR(200),
+    COMMISSION_RATE NUMBER(4,3),
+    COMMISSION_AMOUNT NUMBER(10,2),
+    
+    -- Legal and inspection
+    CLOSING_COSTS NUMBER(8,2),
+    INSPECTION_PASSED BOOLEAN,
+    APPRAISAL_VALUE NUMBER(12,2),
+    TITLE_COMPANY VARCHAR(200),
+    ESCROW_COMPANY VARCHAR(200),
+    
+    -- Contingencies and special terms
+    CONTINGENCIES TEXT,
+    SPECIAL_TERMS TEXT,
+    SALE_STATUS VARCHAR(20) DEFAULT 'COMPLETED',
+    
+    -- Document reference
+    PURCHASE_AGREEMENT_PATH VARCHAR(500),
+    
+    CONSTRAINT PK_HOUSE_SALES PRIMARY KEY (SALE_ID),
+    CONSTRAINT FK_SALES_HOUSE FOREIGN KEY (HOUSE_ID) REFERENCES HOUSE_CHARACTERISTICS(HOUSE_ID),
+    CONSTRAINT FK_SALES_CUSTOMER FOREIGN KEY (CUSTOMER_ID) REFERENCES CUSTOMERS(CUSTOMER_ID)
+);
+
+-- ================================================================
+-- PURCHASE_AGREEMENTS TABLE - Document metadata
+-- ================================================================
+CREATE OR REPLACE TABLE PURCHASE_AGREEMENTS (
+    AGREEMENT_ID NUMBER(10,0) NOT NULL,
+    SALE_ID NUMBER(10,0) NOT NULL,
+    DOCUMENT_NAME VARCHAR(200) NOT NULL,
+    DOCUMENT_PATH VARCHAR(500) NOT NULL,
+    FILE_SIZE_BYTES NUMBER(12,0),
+    UPLOAD_DATE TIMESTAMP DEFAULT CURRENT_TIMESTAMP(),
+    DOCUMENT_TYPE VARCHAR(50) DEFAULT 'PURCHASE_AGREEMENT',
+    
+    -- Agreement details
+    CONTRACT_DATE DATE,
+    CLOSING_DATE DATE,
+    EARNEST_MONEY_AMOUNT NUMBER(8,2),
+    INSPECTION_PERIOD_DAYS NUMBER(2,0),
+    FINANCING_CONTINGENCY_DAYS NUMBER(2,0),
+    
+    -- Legal terms
+    SPECIAL_TERMS TEXT,
+    CONTINGENCY_DETAILS TEXT,
+    FINANCING_DETAILS TEXT,
+    INSPECTION_DETAILS TEXT,
+    SELLER_CONCESSIONS NUMBER(8,2),
+    
+    CONSTRAINT PK_PURCHASE_AGREEMENTS PRIMARY KEY (AGREEMENT_ID),
+    CONSTRAINT FK_AGREEMENTS_SALE FOREIGN KEY (SALE_ID) REFERENCES HOUSE_SALES(SALE_ID)
+);
+
+-- ================================================================
+-- AGENTS TABLE - Real estate professionals
+-- ================================================================
+CREATE OR REPLACE TABLE AGENTS (
+    AGENT_ID NUMBER(8,0) NOT NULL,
+    FIRST_NAME VARCHAR(50) NOT NULL,
+    LAST_NAME VARCHAR(50) NOT NULL,
+    COMPANY VARCHAR(200),
+    LICENSE_NUMBER VARCHAR(50),
+    EMAIL VARCHAR(100),
+    PHONE VARCHAR(20),
+    YEARS_EXPERIENCE NUMBER(2,0),
+    SPECIALTIES TEXT,
+    TOTAL_SALES_VOLUME NUMBER(15,2),
+    AVERAGE_COMMISSION_RATE NUMBER(4,3),
+    PRIMARY_STATES VARCHAR(100),
+    
+    CONSTRAINT PK_AGENTS PRIMARY KEY (AGENT_ID)
+);
+
+-- ================================================================
+-- CREATE STAGES FOR DOCUMENT STORAGE
+-- ================================================================
+
+-- Stage for storing purchase agreement PDFs
+CREATE OR REPLACE STAGE PURCHASE_AGREEMENTS_STAGE
+    DIRECTORY = (ENABLE = TRUE)
+    COMMENT = 'Stage for storing PDF purchase agreements and related documents';
+
+-- Stage for semantic model files
+CREATE OR REPLACE STAGE SEMANTIC_MODELS_STAGE
+    DIRECTORY = (ENABLE = TRUE)
+    COMMENT = 'Stage for storing semantic model YAML files for Cortex Analyst';
+
+-- ================================================================
+-- CREATE FILE FORMATS
+-- ================================================================
+
+-- File format for PDF documents
+CREATE OR REPLACE FILE FORMAT PDF_FORMAT
+    TYPE = 'CSV'
+    FIELD_DELIMITER = 'NONE'
+    RECORD_DELIMITER = 'NONE'
+    SKIP_HEADER = 0
+    FIELD_OPTIONALLY_ENCLOSED_BY = 'NONE'
+    COMMENT = 'File format for handling PDF binary files';
+
+-- ================================================================
+-- CREATE PERFORMANCE INDEXES
+-- ================================================================
+
+-- Customer indexes
+CREATE INDEX IDX_CUSTOMERS_INCOME ON CUSTOMERS(ANNUAL_INCOME);
+CREATE INDEX IDX_CUSTOMERS_CREDIT ON CUSTOMERS(CREDIT_SCORE);
+CREATE INDEX IDX_CUSTOMERS_STATE ON CUSTOMERS(HOME_STATE);
+CREATE INDEX IDX_CUSTOMERS_BUDGET ON CUSTOMERS(BUDGET_MAX);
+
+-- Property indexes
+CREATE INDEX IDX_HOUSE_LOCATION ON HOUSE_CHARACTERISTICS(STATE, CITY);
+CREATE INDEX IDX_HOUSE_PRICE ON HOUSE_CHARACTERISTICS(LISTING_PRICE);
+CREATE INDEX IDX_HOUSE_SIZE ON HOUSE_CHARACTERISTICS(SQUARE_FOOTAGE);
+CREATE INDEX IDX_HOUSE_TYPE ON HOUSE_CHARACTERISTICS(PROPERTY_TYPE);
+CREATE INDEX IDX_HOUSE_YEAR ON HOUSE_CHARACTERISTICS(YEAR_BUILT);
+
+-- Sales indexes
+CREATE INDEX IDX_SALES_DATE ON HOUSE_SALES(SALE_DATE);
+CREATE INDEX IDX_SALES_PRICE ON HOUSE_SALES(SALE_PRICE);
+CREATE INDEX IDX_SALES_AGENT ON HOUSE_SALES(AGENT_NAME);
+CREATE INDEX IDX_SALES_FINANCING ON HOUSE_SALES(FINANCING_TYPE);
+CREATE INDEX IDX_SALES_STATE ON HOUSE_SALES(SALE_DATE, SALE_PRICE);
+
+-- Agreement indexes
+CREATE INDEX IDX_AGREEMENTS_SALE ON PURCHASE_AGREEMENTS(SALE_ID);
+CREATE INDEX IDX_AGREEMENTS_DATE ON PURCHASE_AGREEMENTS(CONTRACT_DATE);
+
+-- ================================================================
+-- CREATE ANALYTICAL VIEWS
+-- ================================================================
+
+-- View combining property location with sales performance
+CREATE OR REPLACE VIEW MARKET_PERFORMANCE_BY_STATE AS
+SELECT 
+    hc.STATE,
+    COUNT(hs.SALE_ID) AS TOTAL_SALES,
+    AVG(hs.SALE_PRICE) AS AVG_SALE_PRICE,
+    AVG(hs.DAYS_ON_MARKET) AS AVG_DAYS_ON_MARKET,
+    AVG(hc.SQUARE_FOOTAGE) AS AVG_SQFT,
+    AVG(hs.SALE_PRICE / hc.SQUARE_FOOTAGE) AS AVG_PRICE_PER_SQFT,
+    COUNT(CASE WHEN hs.FINANCING_TYPE = 'Cash' THEN 1 END) AS CASH_SALES,
+    ROUND(COUNT(CASE WHEN hs.FINANCING_TYPE = 'Cash' THEN 1 END) * 100.0 / COUNT(*), 1) AS CASH_PERCENTAGE
+FROM HOUSE_CHARACTERISTICS hc
+JOIN HOUSE_SALES hs ON hc.HOUSE_ID = hs.HOUSE_ID
+GROUP BY hc.STATE;
+
+-- View for document search metadata integration
+CREATE OR REPLACE VIEW DOCUMENT_SEARCH_METADATA AS
+SELECT 
+    pa.AGREEMENT_ID,
+    pa.SALE_ID,
+    pa.DOCUMENT_NAME,
+    pa.DOCUMENT_PATH,
+    pa.CONTRACT_DATE,
+    pa.CLOSING_DATE,
+    hs.SALE_PRICE,
+    hs.SALE_DATE,
+    hs.AGENT_NAME,
+    hs.FINANCING_TYPE,
+    hc.ADDRESS,
+    hc.CITY,
+    hc.STATE,
+    hc.PROPERTY_TYPE,
+    c.FIRST_NAME || ' ' || c.LAST_NAME AS BUYER_NAME,
+    c.ANNUAL_INCOME AS BUYER_INCOME,
+    pa.SPECIAL_TERMS,
+    pa.CONTINGENCY_DETAILS,
+    pa.FINANCING_DETAILS
+FROM PURCHASE_AGREEMENTS pa
+JOIN HOUSE_SALES hs ON pa.SALE_ID = hs.SALE_ID
+JOIN HOUSE_CHARACTERISTICS hc ON hs.HOUSE_ID = hc.HOUSE_ID
+JOIN CUSTOMERS c ON hs.CUSTOMER_ID = c.CUSTOMER_ID;
+
+-- ================================================================
+-- STORED PROCEDURES
+-- ================================================================
+
+-- Procedure to register a new purchase agreement
+CREATE OR REPLACE PROCEDURE REGISTER_PURCHASE_AGREEMENT(
+    SALE_ID_PARAM NUMBER,
+    DOCUMENT_NAME_PARAM VARCHAR,
+    DOCUMENT_PATH_PARAM VARCHAR,
+    CONTRACT_DATE_PARAM DATE,
+    CLOSING_DATE_PARAM DATE,
+    SPECIAL_TERMS_PARAM TEXT
+)
+RETURNS STRING
+LANGUAGE SQL
+EXECUTE AS CALLER
+AS
+$$
+DECLARE
+    AGREEMENT_ID_VAR NUMBER;
+BEGIN
+    SELECT COALESCE(MAX(AGREEMENT_ID), 4000) + 1 INTO AGREEMENT_ID_VAR FROM PURCHASE_AGREEMENTS;
+    
+    INSERT INTO PURCHASE_AGREEMENTS (
+        AGREEMENT_ID, SALE_ID, DOCUMENT_NAME, DOCUMENT_PATH, 
+        CONTRACT_DATE, CLOSING_DATE, SPECIAL_TERMS
+    ) VALUES (
+        AGREEMENT_ID_VAR, SALE_ID_PARAM, DOCUMENT_NAME_PARAM, DOCUMENT_PATH_PARAM,
+        CONTRACT_DATE_PARAM, CLOSING_DATE_PARAM, SPECIAL_TERMS_PARAM
+    );
+    
+    UPDATE HOUSE_SALES 
+    SET PURCHASE_AGREEMENT_PATH = DOCUMENT_PATH_PARAM 
+    WHERE SALE_ID = SALE_ID_PARAM;
+    
+    RETURN 'Purchase agreement registered with ID: ' || AGREEMENT_ID_VAR;
+END;
+$$;
+
+-- Procedure to validate 1:1 customer-house relationship
+CREATE OR REPLACE PROCEDURE VALIDATE_ONE_TO_ONE_RELATIONSHIP()
+RETURNS STRING
+LANGUAGE SQL
+EXECUTE AS CALLER
+AS
+$$
+DECLARE
+    DUPLICATE_CUSTOMERS NUMBER;
+    DUPLICATE_HOUSES NUMBER;
+BEGIN
+    -- Check for duplicate customers
+    SELECT COUNT(*) INTO DUPLICATE_CUSTOMERS
+    FROM (
+        SELECT CUSTOMER_ID, COUNT(*) 
+        FROM HOUSE_SALES 
+        GROUP BY CUSTOMER_ID 
+        HAVING COUNT(*) > 1
+    );
+    
+    -- Check for duplicate houses
+    SELECT COUNT(*) INTO DUPLICATE_HOUSES
+    FROM (
+        SELECT HOUSE_ID, COUNT(*) 
+        FROM HOUSE_SALES 
+        GROUP BY HOUSE_ID 
+        HAVING COUNT(*) > 1
+    );
+    
+    IF (DUPLICATE_CUSTOMERS > 0 OR DUPLICATE_HOUSES > 0) THEN
+        RETURN 'VALIDATION FAILED: Found ' || DUPLICATE_CUSTOMERS || ' duplicate customers and ' || DUPLICATE_HOUSES || ' duplicate houses';
+    ELSE
+        RETURN 'VALIDATION PASSED: Perfect 1:1 customer-house relationship maintained';
+    END IF;
+END;
+$$;
+
+-- ================================================================
+-- GRANT PERMISSIONS
+-- ================================================================
+GRANT ALL ON DATABASE HOUSING_INTELLIGENCE TO ROLE SYSADMIN;
+GRANT ALL ON SCHEMA HOUSING_INTELLIGENCE.CORE TO ROLE SYSADMIN;
+GRANT ALL ON ALL TABLES IN SCHEMA HOUSING_INTELLIGENCE.CORE TO ROLE SYSADMIN;
+GRANT ALL ON ALL VIEWS IN SCHEMA HOUSING_INTELLIGENCE.CORE TO ROLE SYSADMIN;
+GRANT ALL ON ALL PROCEDURES IN SCHEMA HOUSING_INTELLIGENCE.CORE TO ROLE SYSADMIN;
+GRANT ALL ON STAGE PURCHASE_AGREEMENTS_STAGE TO ROLE SYSADMIN;
+GRANT ALL ON STAGE SEMANTIC_MODELS_STAGE TO ROLE SYSADMIN;
+GRANT ALL ON FILE FORMAT PDF_FORMAT TO ROLE SYSADMIN;
+
+-- ================================================================
+-- ADD COMMENTS FOR DOCUMENTATION
+-- ================================================================
+COMMENT ON DATABASE HOUSING_INTELLIGENCE IS 'Housing Intelligence v2 - Complete Cortex system with 1:1 customer-house relationship';
+COMMENT ON SCHEMA HOUSING_INTELLIGENCE.CORE IS 'Core schema with structured data tables and document metadata';
+
+COMMENT ON TABLE CUSTOMERS IS 'Customer profiles with enhanced demographic and financial data (60 customers)';
+COMMENT ON TABLE HOUSE_CHARACTERISTICS IS 'Property details with comprehensive features and location data (60 properties)';
+COMMENT ON TABLE HOUSE_SALES IS 'Sales transactions with 1:1 customer-house mapping (60 sales)';
+COMMENT ON TABLE PURCHASE_AGREEMENTS IS 'Legal document metadata for PDF purchase agreements';
+COMMENT ON TABLE AGENTS IS 'Real estate agent profiles and performance metrics';
+
+COMMENT ON STAGE PURCHASE_AGREEMENTS_STAGE IS 'Storage for PDF purchase agreements';
+COMMENT ON STAGE SEMANTIC_MODELS_STAGE IS 'Storage for YAML semantic models';
+
+-- ================================================================
+-- SYSTEM VERIFICATION
+-- ================================================================
+SELECT 
+    'Database Setup Complete' AS STATUS,
+    'Schema: Enhanced with 5 tables for comprehensive analysis' AS TABLES_INFO,
+    'Relationship: 1:1 customer-house enforced via UNIQUE constraints' AS DATA_MODEL,
+    'Coverage: 60 customers, 60 properties, 60 sales across 5 states' AS SCOPE,
+    'Ready for: Cortex Analyst + Cortex Search + PDF generation' AS CAPABILITIES;

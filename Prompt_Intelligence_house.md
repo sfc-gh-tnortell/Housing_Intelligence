@@ -48,10 +48,12 @@ The Cortex Agents is a stateless REST API endpoint that:
 REQUIREMENTS
 1. Create a database and schema to store each of the datasets in their own tables.
 2. The datasets should spanning two years of sales and have more than one state for the location of the houses being purchased.
-3. Create a purchase agreement matching the sales data for each sale using the example purchase agreement linked in USEFUL RESOURCES and store them in an internal stage for the newly created database
-3. Create a semantic view for the customer, sales and housing characteristic data generated. 
-4. Create a Cortex Analyst object with the newly created semantic view.
-6. Create a Cortex Search service for the purchase agreements.
+3. Each customer should only buy one house, make enough customer and house data to support this.
+4. Create a purchase agreement matching the sales data for each sale using the example purchase agreement linked in USEFUL RESOURCES and store them in an internal stage for the newly created database
+5. for the purchase agreement generator input all the sales_data to match the generated house sales data, the purchase agreements should not be generated with random numbers they should match the values in the created table
+6. Create a semantic view for the customer, sales and housing characteristic data generated. 
+7. Create a Cortex Analyst object with the newly created semantic view.
+8. Create a Cortex Search service for the purchase agreements.
 
 
 USEFUL RESOURCES

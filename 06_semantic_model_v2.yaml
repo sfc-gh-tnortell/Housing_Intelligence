@@ -1,0 +1,551 @@
+# ================================================================
+# HOUSING INTELLIGENCE SEMANTIC MODEL V2
+# ================================================================
+# Comprehensive semantic model for Cortex Analyst with 1:1 customer-house relationship
+# Enables natural language queries across housing sales, customer demographics, and property characteristics
+
+name: housing_intelligence_semantic_model_v2
+description: |
+  Complete housing market intelligence system covering real estate sales transactions, 
+  customer demographics, and property characteristics across 5 states (TX, CA, FL, CO, AZ) 
+  from 2022-2023. Features perfect 1:1 customer-house relationship modeling with 59 sales transactions.
+
+# ================================================================
+# LOGICAL TABLES - Base data sources
+# ================================================================
+logical_tables:
+  # Main fact table - sales transactions
+  - name: house_sales
+    description: "Real estate sales transactions with financing and agent details"
+    base_table:
+      schema: HOUSING_INTELLIGENCE.CORE
+      name: HOUSING_SALES_SEMANTIC_VIEW
+    
+  # Dimension tables referenced through the semantic view
+  - name: customers
+    description: "Customer demographics and financial profiles"
+    base_table:
+      schema: HOUSING_INTELLIGENCE.CORE
+      name: HOUSING_SALES_SEMANTIC_VIEW
+  
+  - name: properties
+    description: "Property characteristics and market information"
+    base_table:
+      schema: HOUSING_INTELLIGENCE.CORE
+      name: HOUSING_SALES_SEMANTIC_VIEW
+
+# ================================================================
+# DIMENSIONS - Categorical and descriptive attributes
+# ================================================================
+dimensions:
+  # ================================================================
+  # GEOGRAPHIC DIMENSIONS
+  # ================================================================
+  - name: state
+    description: "Property state location"
+    synonyms: ["location", "region", "geographic area"]
+    expr: PROPERTY_STATE
+    data_type: varchar
+    sample_values: ["TX", "CA", "FL", "CO", "AZ"]
+
+  - name: city
+    description: "Property city location"
+    synonyms: ["municipality", "urban area", "metro"]
+    expr: PROPERTY_CITY
+    data_type: varchar
+    sample_values: ["Austin", "San Francisco", "Miami", "Denver", "Phoenix"]
+
+  - name: metro_area
+    description: "Major metropolitan area classification"
+    synonyms: ["metropolitan area", "region", "market"]
+    expr: METRO_AREA
+    data_type: varchar
+    sample_values: ["Austin Metro", "Bay Area", "Miami-Dade", "Denver Metro", "Phoenix Metro"]
+
+  - name: county
+    description: "County where property is located"
+    synonyms: ["jurisdiction", "administrative area"]
+    expr: PROPERTY_COUNTY
+    data_type: varchar
+    sample_values: ["Travis County", "San Francisco County", "Miami-Dade County"]
+
+  - name: neighborhood
+    description: "Local neighborhood or district"
+    synonyms: ["area", "district", "community", "subdivision"]
+    expr: NEIGHBORHOOD
+    data_type: varchar
+    sample_values: ["Barton Hills", "Marina District", "South Beach", "Highland"]
+
+  # ================================================================
+  # TEMPORAL DIMENSIONS
+  # ================================================================
+  - name: sale_year
+    description: "Year when the sale was completed"
+    synonyms: ["year", "annual", "yearly"]
+    expr: YEAR(SALE_DATE)
+    data_type: number
+    sample_values: [2022, 2023]
+
+  - name: sale_quarter
+    description: "Quarter when the sale was completed"
+    synonyms: ["quarter", "q1", "q2", "q3", "q4", "quarterly"]
+    expr: QUARTER(SALE_DATE)
+    data_type: number
+    sample_values: [1, 2, 3, 4]
+
+  - name: sale_month
+    description: "Month when the sale was completed"
+    synonyms: ["month", "monthly"]
+    expr: MONTH(SALE_DATE)
+    data_type: number
+    sample_values: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
+
+  - name: sale_season
+    description: "Season when the sale occurred"
+    synonyms: ["seasonal", "time of year"]
+    expr: |
+      CASE 
+        WHEN MONTH(SALE_DATE) IN (12, 1, 2) THEN 'Winter'
+        WHEN MONTH(SALE_DATE) IN (3, 4, 5) THEN 'Spring' 
+        WHEN MONTH(SALE_DATE) IN (6, 7, 8) THEN 'Summer'
+        ELSE 'Fall'
+      END
+    data_type: varchar
+    sample_values: ["Winter", "Spring", "Summer", "Fall"]
+
+  # ================================================================
+  # PROPERTY DIMENSIONS
+  # ================================================================
+  - name: property_type
+    description: "Type of residential property"
+    synonyms: ["home type", "dwelling type", "structure type"]
+    expr: PROPERTY_TYPE
+    data_type: varchar
+    sample_values: ["Single Family", "Condo", "Townhouse", "Duplex"]
+
+  - name: property_type_category
+    description: "High-level property category"
+    synonyms: ["property category", "housing category"]
+    expr: PROPERTY_TYPE_CATEGORY
+    data_type: varchar
+    sample_values: ["Detached", "Attached", "Multi-Unit"]
+
+  - name: size_category
+    description: "Property size classification by square footage"
+    synonyms: ["home size", "size range", "square footage category"]
+    expr: SIZE_CATEGORY
+    data_type: varchar
+    sample_values: ["Compact", "Medium", "Large", "Luxury"]
+
+  - name: age_category
+    description: "Property age classification"
+    synonyms: ["property age", "construction era", "vintage"]
+    expr: AGE_CATEGORY
+    data_type: varchar
+    sample_values: ["New", "Recent", "Established"]
+
+  - name: bedrooms
+    description: "Number of bedrooms in the property"
+    synonyms: ["beds", "bedroom count", "br"]
+    expr: BEDROOMS
+    data_type: number
+    sample_values: [1, 2, 3, 4, 5, 6]
+
+  - name: bathroom_range
+    description: "Bathroom count range classification"
+    synonyms: ["bathrooms", "bath count", "ba"]
+    expr: BATHROOM_RANGE
+    data_type: varchar
+    sample_values: ["1-1.5", "2-2.5", "3-3.5", "4+"]
+
+  # ================================================================
+  # CUSTOMER DIMENSIONS
+  # ================================================================
+  - name: customer_state
+    description: "Customer's home state"
+    synonyms: ["buyer state", "customer location", "buyer location"]
+    expr: CUSTOMER_STATE
+    data_type: varchar
+    sample_values: ["TX", "CA", "FL", "CO", "AZ"]
+
+  - name: age_group
+    description: "Customer age group classification"
+    synonyms: ["age range", "generation", "demographic"]
+    expr: AGE_GROUP
+    data_type: varchar
+    sample_values: ["25-30", "31-35", "36-40", "41+"]
+
+  - name: income_bracket
+    description: "Customer annual income range"
+    synonyms: ["income range", "salary range", "earnings"]
+    expr: INCOME_BRACKET
+    data_type: varchar
+    sample_values: ["Under $75K", "$75K-$100K", "$100K-$150K", "$150K+"]
+
+  - name: employment_status
+    description: "Customer employment classification"
+    synonyms: ["job status", "work status", "employment type"]
+    expr: EMPLOYMENT_STATUS
+    data_type: varchar
+    sample_values: ["Full-time", "Part-time", "Self-employed"]
+
+  - name: marital_status
+    description: "Customer marital status"
+    synonyms: ["relationship status", "family status"]
+    expr: MARITAL_STATUS
+    data_type: varchar
+    sample_values: ["Single", "Married", "Divorced"]
+
+  - name: first_time_buyer
+    description: "Whether customer is a first-time home buyer"
+    synonyms: ["first time buyer", "new buyer", "first purchase"]
+    expr: FIRST_TIME_BUYER
+    data_type: boolean
+    sample_values: [true, false]
+
+  - name: occupation_category
+    description: "Customer occupation classification"
+    synonyms: ["job category", "career field", "industry"]
+    expr: OCCUPATION_CATEGORY
+    data_type: varchar
+    sample_values: ["Technology", "Healthcare", "Education", "Finance", "Government", "Other"]
+
+  # ================================================================
+  # FINANCIAL DIMENSIONS
+  # ================================================================
+  - name: financing_type
+    description: "Type of financing used for purchase"
+    synonyms: ["loan type", "mortgage type", "funding type"]
+    expr: FINANCING_TYPE
+    data_type: varchar
+    sample_values: ["Conventional", "FHA", "VA", "Jumbo", "Cash"]
+
+  - name: sale_price_range
+    description: "Sale price range classification"
+    synonyms: ["price range", "value range", "cost range"]
+    expr: SALE_PRICE_RANGE
+    data_type: varchar
+    sample_values: ["Under $400K", "$400K-$600K", "$600K-$1M", "$1M+"]
+
+  - name: interest_rate_range
+    description: "Interest rate range for financed purchases"
+    synonyms: ["rate range", "mortgage rate", "loan rate"]
+    expr: INTEREST_RATE_RANGE
+    data_type: varchar
+    sample_values: ["Under 5%", "5-6%", "6-7%", "7%+"]
+
+  - name: loan_to_value_category
+    description: "Loan-to-value ratio classification"
+    synonyms: ["ltv", "financing ratio", "down payment category"]
+    expr: LTV_CATEGORY
+    data_type: varchar
+    sample_values: ["High LTV (>90%)", "Medium LTV (80-90%)", "Low LTV (<80%)", "Cash Purchase"]
+
+  # ================================================================
+  # MARKET DIMENSIONS
+  # ================================================================
+  - name: days_on_market_range
+    description: "Days on market classification"
+    synonyms: ["market time", "listing period", "selling time"]
+    expr: DAYS_ON_MARKET_RANGE
+    data_type: varchar
+    sample_values: ["Quick (0-30)", "Normal (31-60)", "Slow (61+)"]
+
+  - name: price_vs_listing
+    description: "Sale price relative to listing price"
+    synonyms: ["price performance", "negotiation result"]
+    expr: PRICE_VS_LISTING
+    data_type: varchar
+    sample_values: ["Above Listing", "At Listing", "Below Listing"]
+
+  - name: agent_company
+    description: "Real estate company handling the sale"
+    synonyms: ["realtor company", "brokerage", "real estate firm"]
+    expr: AGENT_COMPANY
+    data_type: varchar
+    sample_values: ["Keller Williams", "RE/MAX", "Coldwell Banker", "Compass"]
+
+# ================================================================
+# MEASURES - Quantitative metrics for analysis
+# ================================================================
+measures:
+  # ================================================================
+  # COUNTING MEASURES
+  # ================================================================
+  - name: total_sales
+    description: "Total number of sales transactions"
+    synonyms: ["sales count", "number of sales", "transaction count"]
+    expr: COUNT(*)
+    data_type: number
+
+  - name: unique_customers
+    description: "Number of unique customers"
+    synonyms: ["customer count", "buyer count", "distinct customers"]
+    expr: COUNT(DISTINCT CUSTOMER_ID)
+    data_type: number
+
+  - name: unique_properties
+    description: "Number of unique properties sold"
+    synonyms: ["property count", "home count", "house count"]
+    expr: COUNT(DISTINCT HOUSE_ID)
+    data_type: number
+
+  # ================================================================
+  # FINANCIAL MEASURES
+  # ================================================================
+  - name: total_sales_volume
+    description: "Total dollar value of all sales"
+    synonyms: ["sales volume", "total value", "revenue"]
+    expr: SUM(SALE_PRICE)
+    data_type: number
+    default_aggregation: sum
+
+  - name: average_sale_price
+    description: "Average sale price across transactions"
+    synonyms: ["avg price", "mean price", "typical price"]
+    expr: AVG(SALE_PRICE)
+    data_type: number
+    default_aggregation: avg
+
+  - name: median_sale_price
+    description: "Median sale price across transactions"
+    synonyms: ["median price", "middle price"]
+    expr: MEDIAN(SALE_PRICE)
+    data_type: number
+
+  - name: min_sale_price
+    description: "Lowest sale price"
+    synonyms: ["minimum price", "cheapest price", "lowest value"]
+    expr: MIN(SALE_PRICE)
+    data_type: number
+
+  - name: max_sale_price
+    description: "Highest sale price"
+    synonyms: ["maximum price", "most expensive", "highest value"]
+    expr: MAX(SALE_PRICE)
+    data_type: number
+
+  - name: total_commission
+    description: "Total real estate commission paid"
+    synonyms: ["commission total", "agent fees", "brokerage fees"]
+    expr: SUM(COMMISSION_AMOUNT)
+    data_type: number
+
+  - name: average_commission_rate
+    description: "Average commission rate percentage"
+    synonyms: ["avg commission rate", "typical commission"]
+    expr: AVG(COMMISSION_RATE)
+    data_type: number
+
+  - name: total_down_payments
+    description: "Total down payment amounts"
+    synonyms: ["down payment total", "cash down total"]
+    expr: SUM(DOWN_PAYMENT_AMOUNT)
+    data_type: number
+
+  - name: average_down_payment
+    description: "Average down payment amount"
+    synonyms: ["avg down payment", "typical down payment"]
+    expr: AVG(DOWN_PAYMENT_AMOUNT)
+    data_type: number
+
+  - name: total_loan_amount
+    description: "Total loan amount financed"
+    synonyms: ["financing total", "mortgage total"]
+    expr: SUM(LOAN_AMOUNT)
+    data_type: number
+
+  - name: average_interest_rate
+    description: "Average interest rate for financed purchases"
+    synonyms: ["avg rate", "typical rate", "mean interest rate"]
+    expr: AVG(INTEREST_RATE)
+    data_type: number
+
+  # ================================================================
+  # PROPERTY MEASURES
+  # ================================================================
+  - name: average_square_footage
+    description: "Average property square footage"
+    synonyms: ["avg sqft", "mean size", "typical size"]
+    expr: AVG(SQUARE_FOOTAGE)
+    data_type: number
+
+  - name: average_lot_size
+    description: "Average lot size in square feet"
+    synonyms: ["avg lot size", "typical lot", "mean lot size"]
+    expr: AVG(LOT_SIZE_SQFT)
+    data_type: number
+
+  - name: average_price_per_sqft
+    description: "Average price per square foot"
+    synonyms: ["price per sqft", "$/sqft", "cost per square foot"]
+    expr: AVG(PRICE_PER_SQFT)
+    data_type: number
+
+  - name: average_bedrooms
+    description: "Average number of bedrooms"
+    synonyms: ["avg bedrooms", "typical bedrooms"]
+    expr: AVG(BEDROOMS)
+    data_type: number
+
+  - name: average_bathrooms
+    description: "Average number of bathrooms"
+    synonyms: ["avg bathrooms", "typical bathrooms"]
+    expr: AVG(BATHROOMS)
+    data_type: number
+
+  - name: average_property_age
+    description: "Average age of properties sold"
+    synonyms: ["avg age", "typical age", "mean property age"]
+    expr: AVG(PROPERTY_AGE)
+    data_type: number
+
+  # ================================================================
+  # CUSTOMER MEASURES
+  # ================================================================
+  - name: average_customer_income
+    description: "Average customer annual income"
+    synonyms: ["avg income", "typical income", "mean income"]
+    expr: AVG(ANNUAL_INCOME)
+    data_type: number
+
+  - name: average_credit_score
+    description: "Average customer credit score"
+    synonyms: ["avg credit", "typical credit score"]
+    expr: AVG(CREDIT_SCORE)
+    data_type: number
+
+  - name: average_debt_to_income
+    description: "Average customer debt-to-income ratio"
+    synonyms: ["avg dti", "debt ratio"]
+    expr: AVG(DEBT_TO_INCOME_RATIO)
+    data_type: number
+
+  # ================================================================
+  # MARKET TIMING MEASURES
+  # ================================================================
+  - name: average_days_on_market
+    description: "Average days property was listed before sale"
+    synonyms: ["avg days on market", "typical listing time"]
+    expr: AVG(DAYS_ON_MARKET)
+    data_type: number
+
+  - name: cash_purchase_percentage
+    description: "Percentage of sales that were cash purchases"
+    synonyms: ["cash rate", "cash percentage"]
+    expr: |
+      (COUNT(CASE WHEN FINANCING_TYPE = 'Cash' THEN 1 END) * 100.0) / COUNT(*)
+    data_type: number
+
+  - name: first_time_buyer_percentage
+    description: "Percentage of sales to first-time buyers"
+    synonyms: ["first time buyer rate", "new buyer percentage"]
+    expr: |
+      (COUNT(CASE WHEN FIRST_TIME_BUYER = TRUE THEN 1 END) * 100.0) / COUNT(*)
+    data_type: number
+
+# ================================================================
+# TIME DIMENSION - Special temporal configuration
+# ================================================================
+time_dimensions:
+  - name: sale_date
+    description: "Date when the sale transaction was completed"
+    synonyms: ["transaction date", "closing date", "completion date"]
+    expr: SALE_DATE
+    data_type: date
+    levels:
+      - name: year
+        expr: YEAR(SALE_DATE)
+      - name: quarter  
+        expr: QUARTER(SALE_DATE)
+      - name: month
+        expr: MONTH(SALE_DATE)
+      - name: day
+        expr: DAY(SALE_DATE)
+
+# ================================================================
+# ENTITY RELATIONSHIPS - Define how entities connect
+# ================================================================
+relationships:
+  - name: customer_to_sale
+    description: "Each customer can have one sale (1:1 relationship)"
+    from_table: customers
+    to_table: house_sales
+    type: one_to_one
+    join_keys:
+      - from_column: CUSTOMER_ID
+        to_column: CUSTOMER_ID
+
+  - name: property_to_sale
+    description: "Each property can have one sale (1:1 relationship)"
+    from_table: properties
+    to_table: house_sales
+    type: one_to_one
+    join_keys:
+      - from_column: HOUSE_ID
+        to_column: HOUSE_ID
+
+# ================================================================
+# FILTERS - Common filter patterns
+# ================================================================
+filters:
+  - name: recent_sales
+    description: "Sales from the last 6 months"
+    expr: SALE_DATE >= DATEADD(month, -6, CURRENT_DATE())
+
+  - name: high_value_sales
+    description: "Sales above $500,000"
+    expr: SALE_PRICE > 500000
+
+  - name: luxury_properties
+    description: "Properties above $1 million"
+    expr: SALE_PRICE > 1000000
+
+  - name: financed_purchases
+    description: "Sales that used financing (not cash)"
+    expr: FINANCING_TYPE != 'Cash'
+
+  - name: first_time_buyers_only
+    description: "Sales to first-time home buyers"
+    expr: FIRST_TIME_BUYER = TRUE
+
+# ================================================================
+# VERIFIED CONTEXT - Examples and sample queries
+# ================================================================
+verified_queries:
+  - name: "state_market_analysis"
+    description: "Compare average sale prices across states"
+    sql: |
+      SELECT 
+        PROPERTY_STATE,
+        COUNT(*) as sales_count,
+        AVG(SALE_PRICE) as avg_price,
+        AVG(SQUARE_FOOTAGE) as avg_sqft
+      FROM HOUSING_SALES_SEMANTIC_VIEW 
+      GROUP BY PROPERTY_STATE 
+      ORDER BY avg_price DESC
+
+  - name: "financing_trends"
+    description: "Analyze financing types by year"
+    sql: |
+      SELECT 
+        YEAR(SALE_DATE) as sale_year,
+        FINANCING_TYPE,
+        COUNT(*) as sales_count,
+        AVG(INTEREST_RATE) as avg_rate
+      FROM HOUSING_SALES_SEMANTIC_VIEW 
+      WHERE FINANCING_TYPE != 'Cash'
+      GROUP BY YEAR(SALE_DATE), FINANCING_TYPE
+      ORDER BY sale_year, sales_count DESC
+
+  - name: "customer_demographics"
+    description: "Customer demographics by income and age"
+    sql: |
+      SELECT 
+        INCOME_BRACKET,
+        AGE_GROUP,
+        COUNT(*) as customer_count,
+        AVG(SALE_PRICE) as avg_purchase_price
+      FROM HOUSING_SALES_SEMANTIC_VIEW 
+      GROUP BY INCOME_BRACKET, AGE_GROUP
+      ORDER BY customer_count DESC
